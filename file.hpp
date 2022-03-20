@@ -9,7 +9,6 @@ class process;
 class file{
 public:
 	file(){};
-	file(string, string);
 	file(string, string, string);
 	file(string, string, string, string);
 	file& operator=(file const &); // copy assignment operator
@@ -27,7 +26,7 @@ private:
 	string name; // file name
 };
 
-file::file(string fd_field, string path, string type_field, string inode_field){
+file::file(string fd_field, string path, string inode_field, string type_field){
 	fd = fd_field;
 	type = type_field;
 	inode = inode_field;
@@ -35,26 +34,16 @@ file::file(string fd_field, string path, string type_field, string inode_field){
 	print_info();
 }
 
-file::file(string fd_field, string path, string inode_field){
+file::file(string fd_field, string path, string file_name){
 	struct stat statbuf;
 	if( stat(path.c_str(), &statbuf) == -1){
 		perror("stat");
-	}
-	fd = fd_field;
-	set_type_field(statbuf.st_mode);
-	inode = inode_field;
-	name = path;
-	print_info();
-}
-file::file(string fd_field, string path){
-	struct stat statbuf;
-	if( stat(path.c_str(), &statbuf) == -1){
-		perror("stat");
+		throw runtime_error("race condition, file no longer exist");
 	}
 	set_fd_field(fd_field, statbuf.st_mode);
 	set_type_field(statbuf.st_mode);
 	set_inode_field(statbuf.st_ino);
-	set_name_field(path);
+	set_name_field(file_name);
 	print_info();
 }
 
@@ -77,11 +66,11 @@ void file::set_fd_field(string fd_field, mode_t mode){
 		fd = fd_field;
 	// [0-9]+[rwu]
 	else if(mode&S_IRUSR && mode&S_IWUSR)
-		fd = "u";
+		fd = fd_field + "u";
 	else if(mode&S_IRUSR)
-		fd = "r";
+		fd = fd_field + "r";
 	else if(mode&S_IWUSR)
-		fd = "w";
+		fd = fd_field + "w";
 }
 
 void file::set_type_field(mode_t mode){

@@ -105,7 +105,7 @@ void process::handle_special_files(){
 		if((len=readlink(tar.second.c_str(), buffer, sizeof(buffer))) == -1){
 			int errsv = errno; // according to man 3 errno
 			if(errsv == EACCES){
-				result.push_back(file(tar.first, tar.second + " (Permission denied)", "unknown", ""));
+				result.push_back(file(tar.first, tar.second + " (Permission denied)", "", "unknown"));
 				continue;
 			} else{
 				perror("readlink");
@@ -115,7 +115,13 @@ void process::handle_special_files(){
 		}
 		buffer[len] = '\0';
 		string file_name(buffer);
-		result.push_back(file(tar.first, file_name));
+		try{
+			result.push_back(file(tar.first, tar.second, file_name));
+		} catch(runtime_error &e){
+			printf("%s\n", e.what());
+			alive = false;
+			return;
+		}
 	}
 	fcwd = result.at(0);
 	froot = result.at(1);
@@ -163,7 +169,7 @@ void process::handle_memory_maps(){
 		string fd_field = "mem";
 		if(file_name.find("deleted") != string::npos)
 			fd_field = "DEL";
-		fmem.push_back(file(fd_field, file_name, inode));
+		fmem.push_back(file(fd_field, file_name, inode, "REG"));
 	}
 	fclose(fp);
 }
@@ -206,8 +212,13 @@ void process::handle_file_descriptors(){
 		}
 		buffer[len]='\0';
 		string file_name(buffer);
-		// ffd.push_back(file(file_descriptor, file_name));
-		ffd.push_back(file(file_descriptor, path + "/fd/" + file_descriptor));
+		try{
+			// TODO: file name 存在 dierectory 裡面, stat 用來取得 type 與 inode, 所以改成把 symbolic link 傳進去給 stat 用, 並把現在得到的名稱也傳進去給 file name 用
+			ffd.push_back(file(file_descriptor, path + "/fd/" + file_descriptor, file_name));
+		} catch(runtime_error &e){
+			printf("%s\n", e.what());
+			continue;
+		}
 	}
 
 
