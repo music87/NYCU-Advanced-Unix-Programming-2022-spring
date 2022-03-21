@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "arguments_parser.hpp"
+#include "argument_parser.hpp"
 #include "process.hpp"
 using namespace std;
 
@@ -19,6 +19,7 @@ void set_user_table(){
 	char buffer[1024];
 	if((fp=fopen("/etc/passwd", "r")) == NULL)
 		perror("fopen");
+	printf("COMMAND\t\tPID\t\tUSER\t\tFD\t\tTYPE\t\tNODE\t\tNAME\n");
 	while(fgets(buffer, sizeof(buffer), fp)){
 		char deli[2] = ":";
 		char* token = strtok(buffer, deli);
@@ -32,7 +33,7 @@ void set_user_table(){
 }
 
 int main(int argc, char *argv[]){
-		arguments_parser(argc, argv);
+		argument_parser(argc, argv);
 		regex pid_regex("\\d+");
 		DIR *dirp;
 		struct dirent *dp;

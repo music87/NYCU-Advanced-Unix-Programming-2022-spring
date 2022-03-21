@@ -1,7 +1,7 @@
 CXX = g++
 CFLAGS = -Wall -g
 TARGET = hw1
-DEPENDENCIES = arguments_parser.hpp process.hpp file.hpp
+DEPENDENCIES = argument_parser.hpp process.hpp file.hpp
 
 all: hw1
 

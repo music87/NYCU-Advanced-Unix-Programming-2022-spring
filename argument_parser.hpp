@@ -1,7 +1,7 @@
 #pragma once
 #include<unistd.h>
 #include<regex>
-void arguments_parser(int argc, char* argv[]){
+void argument_parser(int argc, char* argv[]){
 	// argv is an array composed of many pointers
 	// hence if you mutate argv here, the argv outside will also be mutated
 	int option;

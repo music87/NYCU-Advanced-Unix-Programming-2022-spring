@@ -31,20 +31,25 @@ file::file(string fd_field, string path, string inode_field, string type_field){
 	type = type_field;
 	inode = inode_field;
 	name = path;
-	print_info();
+	// print_info();
 }
 
 file::file(string fd_field, string path, string file_name){
-	struct stat statbuf;
-	if( stat(path.c_str(), &statbuf) == -1){
+	struct stat statbuf, lstatbuf;
+	if(stat(path.c_str(), &statbuf) == -1){
 		perror("stat");
 		throw runtime_error("race condition, file no longer exist");
 	}
-	set_fd_field(fd_field, statbuf.st_mode);
+	if(lstat(path.c_str(), &lstatbuf) == -1){
+		perror("lstat");
+		throw runtime_error("race condition, file no longer exist");
+	}
+
+	set_fd_field(fd_field, lstatbuf.st_mode);
 	set_type_field(statbuf.st_mode);
 	set_inode_field(statbuf.st_ino);
 	set_name_field(file_name);
-	print_info();
+	// print_info();
 }
 
 file& file::operator=(file const &other){
@@ -65,7 +70,7 @@ void file::set_fd_field(string fd_field, mode_t mode){
 	if(!regex_match(fd_field, file_descriptor_regex))
 		fd = fd_field;
 	// [0-9]+[rwu]
-	else if(mode&S_IRUSR && mode&S_IWUSR)
+	else if((mode&S_IRUSR) && (mode&S_IWUSR))
 		fd = fd_field + "u";
 	else if(mode&S_IRUSR)
 		fd = fd_field + "r";
