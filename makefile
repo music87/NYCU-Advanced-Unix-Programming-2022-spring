@@ -13,4 +13,4 @@ logger.so: inject_glibc.cpp utils.hpp
 	$(CXX) -o $@ -Wall -g $<
 
 clean:
-	rm -f *~ $(PROGS) core sample.txt
+	rm -f *~ $(PROGS) core sample.txt sample2.txt

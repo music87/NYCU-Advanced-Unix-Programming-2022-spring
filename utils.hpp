@@ -1,4 +1,5 @@
 #include <dlfcn.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <string>
 #include <sys/types.h>
@@ -16,6 +17,21 @@ void *get_origin_func(std::string func_name){
 	dlerror(); // clear error
 	dlclose(handle);
 	return origin_func;
+}
+
+
+std::string get_buffer(const char *bf_ptr, size_t len){
+	// If a passed argument is a regular character buffer, print it out up to 32 bytes.
+	std::string msg = "";
+	for(int i=0; i<32; i++){
+		if(bf_ptr[i]=='\0' || i>=len)
+			break;
+		if(!isprint(bf_ptr[i]))
+			msg += ".";
+		else
+			msg += bf_ptr[i];
+	}
+	return msg;
 }
 
 std::string get_abs_path(const char* file_name){
