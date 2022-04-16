@@ -38,7 +38,7 @@ int chmod(const char *path, mode_t mode){
 	int ret_val = origin_chmod(path, mode);
 	std::string abs_path = get_abs_path(path);
 
-	fprintf(stderr, "[logger] chmod(%s, %o) = %d\n", abs_path.c_str(), mode, ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] chmod(\"%s\", %o) = %d\n", abs_path.c_str(), mode, ret_val);
 	return ret_val;
 }
 
@@ -47,7 +47,7 @@ int chown(const char* path, uid_t owner, gid_t group){
 	origin_chown = (int (*)(const char*, uid_t, gid_t))get_origin_func("chown");
 	int ret_val = origin_chown(path, owner, group);
 	std::string abs_path = get_abs_path(path);
-	fprintf(stderr, "[logger] chown(%s, %d, %d) = %d\n", abs_path.c_str(), owner, group, ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] chown(\"%s\", %d, %d) = %d\n", abs_path.c_str(), owner, group, ret_val);
 	return ret_val;
 }
 
@@ -56,7 +56,7 @@ int close(int fd){
 	origin_close = (int (*)(int)) get_origin_func("close");
 	std::string abs_path = get_abs_path(fd); // order matter
 	int ret_val = origin_close(fd);
-	fprintf(stderr, "[logger] close(%s) = %d\n", abs_path.c_str(), ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] close(\"%s\") = %d\n", abs_path.c_str(), ret_val);
 	return ret_val;
 }
 
@@ -65,7 +65,7 @@ int creat(const char *path, mode_t mode){
 	origin_creat = (int (*)(const char*, mode_t)) get_origin_func("creat");
 	int ret_val = origin_creat(path, mode);
 	std::string abs_path = get_abs_path(path); //order matter
-	fprintf(stderr, "[logger] creat(%s, %o) = %d\n", abs_path.c_str(), mode, ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] creat(\"%s\", %o) = %d\n", abs_path.c_str(), mode, ret_val);
 	return ret_val;
 }
 
@@ -73,8 +73,12 @@ static int (*origin_fclose)(FILE *) = NULL;
 int fclose(FILE *stream){
 	origin_fclose = (int (*)(FILE*)) get_origin_func("fclose");
 	std::string abs_path = get_abs_path(stream); // order matter
+	///int res_stderr_fd = dup(STDERR_FILENO);
 	int ret_val = origin_fclose(stream);
-	fprintf(stderr, "[logger] fclose(%s) = %d\n", abs_path.c_str(), ret_val);
+	///dprintf(res_stderr_fd, "[logger] fclose(\"%s\") = %d\n", abs_path.c_str(), ret_val);
+	///origin_fclose(fdopen(res_stderr_fd, "w+"));
+
+	dprintf(atoi(getenv("OUT_FD")), "[logger] fclose(\"%s\") = %d\n", abs_path.c_str(), ret_val);
 	return ret_val;
 }
 
@@ -83,7 +87,7 @@ FILE* fopen(const char *pathname, const char *mode){
 	origin_fopen = (FILE* (*)(const char*, const char*)) get_origin_func("fopen");
 	FILE *ret_fp = origin_fopen(pathname, mode);
 	std::string abs_path = get_abs_path(pathname); // order matter
-	fprintf(stderr, "[logger] fopen(%s, %s) = %p\n", abs_path.c_str(), mode, ret_fp);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] fopen(\"%s\", \"%s\") = %p\n", abs_path.c_str(), mode, ret_fp);
 	return ret_fp;
 }
 
@@ -93,7 +97,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	size_t ret_val = origin_fread(ptr, size, nmemb, stream);
 	std::string abs_path = get_abs_path(stream);
 	std::string msg = get_buffer((char*)ptr, size*nmemb);
-	fprintf(stderr, "[logger] fread(%s, %ld, %ld, %s) = %ld\n", msg.c_str(), size, nmemb, abs_path.c_str(), ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] fread(\"%s\", %ld, %ld, \"%s\") = %ld\n", msg.c_str(), size, nmemb, abs_path.c_str(), ret_val);
 	return ret_val;
 }
 
@@ -103,7 +107,7 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE* stream){
 	size_t ret_val = origin_fwrite(ptr, size, nmemb, stream);
 	std::string abs_path = get_abs_path(stream);
 	std::string msg = get_buffer((char *)ptr, size*nmemb);
-	fprintf(stderr, "[logger] fwrite(%s, %ld, %ld, %s) = %ld\n", msg.c_str(), size, nmemb, abs_path.c_str(), ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] fwrite(\"%s\", %ld, %ld, \"%s\") = %ld\n", msg.c_str(), size, nmemb, abs_path.c_str(), ret_val);
 	return ret_val;
 }
 
@@ -126,7 +130,7 @@ int open(const char *pathname, int flags, ...){
 	// resolve real absolute path
 	std::string abs_path = get_abs_path(pathname);
 
-	fprintf(stderr, "[logger] open(%s, %o, %o) = %d\n", abs_path.c_str(), flags, mode, ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] open(\"%s\", %o, %o) = %d\n", abs_path.c_str(), flags, mode, ret_val);
 
 	return ret_val;
 }
@@ -137,7 +141,7 @@ ssize_t read(int fd, void* buf, size_t nbyte){
 	ssize_t ret_val = origin_read(fd, buf, nbyte);
 	std::string abs_path = get_abs_path(fd);
 	std::string msg = get_buffer((char*) buf, ret_val);
-	fprintf(stderr, "[logger] read(%s, %s, %ld) = %ld\n", abs_path.c_str(), msg.c_str(), nbyte, ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] read(\"%s\", \"%s\", %ld) = %ld\n", abs_path.c_str(), msg.c_str(), nbyte, ret_val);
 	return ret_val;
 }
 
@@ -147,7 +151,7 @@ ssize_t write(int fd, const void* buf, size_t nbyte){
 	ssize_t ret_val = origin_write(fd, buf, nbyte);
 	std::string abs_path = get_abs_path(fd);
 	std::string msg = get_buffer((char*) buf, ret_val);
-	fprintf(stderr, "[logger] write(%s, %s, %ld) = %ld\n", abs_path.c_str(), msg.c_str(), nbyte, ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] write(\"%s\", \"%s\", %ld) = %ld\n", abs_path.c_str(), msg.c_str(), nbyte, ret_val);
 	return ret_val;
 }
 
@@ -156,7 +160,7 @@ int remove(const char* pathname){
 	origin_remove = (int (*)(const char*)) get_origin_func("remove");
 	std::string abs_path = get_abs_path(pathname); //order mater
 	int ret_val = origin_remove(pathname);
-	fprintf(stderr, "[logger] remove(%s) = %d\n", abs_path.c_str(), ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] remove(\"%s\") = %d\n", abs_path.c_str(), ret_val);
 	return ret_val;
 }
 
@@ -166,7 +170,7 @@ int rename(const char* oldp, const char* newp){
 	std::string abs_oldp = get_abs_path(oldp);
 	int ret_val = origin_rename(oldp, newp);
 	std::string abs_newp = get_abs_path(newp); // order matter
-	fprintf(stderr, "[logger] rename(%s, %s) = %d\n", abs_oldp.c_str(), abs_newp.c_str(), ret_val);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] rename(\"%s\", \"%s\") = %d\n", abs_oldp.c_str(), abs_newp.c_str(), ret_val);
 	return ret_val;
 }
 
@@ -174,6 +178,6 @@ static FILE* (*origin_tmpfile)(void) = NULL;
 FILE* tmpfile(void){
 	origin_tmpfile = (FILE* (*)(void)) get_origin_func("tmpfile");
 	FILE* ret_ptr = origin_tmpfile();
-	fprintf(stderr, "[logger] tmpfile() = %p\n", ret_ptr);
+	dprintf(atoi(getenv("OUT_FD")), "[logger] tmpfile() = %p\n", ret_ptr);
 	return ret_ptr;
 }

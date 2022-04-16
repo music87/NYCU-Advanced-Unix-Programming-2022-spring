@@ -1,5 +1,5 @@
 CXX = g++
-PROGS = logger logger.so sample
+PROGS = logger logger.so #sample
 
 all: $(PROGS)
 
@@ -13,4 +13,4 @@ logger.so: inject_glibc.cpp utils.hpp
 	$(CXX) -o $@ -Wall -g $<
 
 clean:
-	rm -f *~ $(PROGS) core sample.txt sample2.txt
+	rm -f *~ $(PROGS) core *.txt sample
