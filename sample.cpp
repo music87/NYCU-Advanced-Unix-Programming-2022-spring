@@ -10,6 +10,7 @@ int main(){
 
 
 	// test open , write, read and close
+	open("111.txt", O_RDWR);
 	int fd = open("./sample.txt", O_RDWR | O_CREAT, 0644);
 	if(fd==-1){
 		perror("open");
@@ -58,9 +59,9 @@ int main(){
 	}
 
 	// char str[] = "1abc2abc3abc4abc5abc6abc7abc8abc9abc\n";
-	char str[] = "0123456789012345678901234567890123456789\n";
+	char str[] = "012\0 56789012345678901234567890123456789\n";
 	size_t chunk = fwrite(str, 4, 25, fp);
-	if(chunk != sizeof(str)/4){
+	if(chunk != 25){
 		if(ferror(fp)){
 			fprintf(stderr, "fwrite: failed!\n");
 		}

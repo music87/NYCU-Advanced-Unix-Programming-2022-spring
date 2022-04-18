@@ -96,7 +96,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	origin_fread = (size_t (*)(void*, size_t, size_t, FILE*)) get_origin_func("fread");
 	size_t ret_val = origin_fread(ptr, size, nmemb, stream);
 	std::string abs_path = get_abs_path(stream);
-	std::string msg = get_buffer((char*)ptr, size*nmemb);
+	std::string msg = get_buffer((char*)ptr, size*ret_val);
 	dprintf(atoi(getenv("OUT_FD")), "[logger] fread(\"%s\", %ld, %ld, \"%s\") = %ld\n", msg.c_str(), size, nmemb, abs_path.c_str(), ret_val);
 	return ret_val;
 }
@@ -106,7 +106,7 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE* stream){
 	origin_fwrite = (size_t (*)(const void*, size_t, size_t, FILE*)) get_origin_func("fwrite");
 	size_t ret_val = origin_fwrite(ptr, size, nmemb, stream);
 	std::string abs_path = get_abs_path(stream);
-	std::string msg = get_buffer((char *)ptr, size*nmemb);
+	std::string msg = get_buffer((char *)ptr, size*ret_val);
 	dprintf(atoi(getenv("OUT_FD")), "[logger] fwrite(\"%s\", %ld, %ld, \"%s\") = %ld\n", msg.c_str(), size, nmemb, abs_path.c_str(), ret_val);
 	return ret_val;
 }

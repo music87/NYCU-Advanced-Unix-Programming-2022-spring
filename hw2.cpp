@@ -49,15 +49,14 @@ int main(int argc, char* argv[]){
 		out_fd = dup(STDERR_FILENO);
 	} else{
 		out_fd = open(path_out.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
-		if(out_fd==-1)
-			perror("open");
+		if(out_fd==-1){
+			//perror("open");
+		}
 	}
 	setenv("OUT_FD", std::to_string(out_fd).c_str(), 1);
 	setenv("LD_PRELOAD", path_libc.c_str(), 1);
-	if(execvp(argv[0], argv)==-1){
-		perror("execvp");
-		return -1;
-	}
 
-	return 0;
+	execvp(argv[0], argv);
+	//perror("execvp"); // if execvp success, this segment should be overwrite and won't be runned
+	return -1;
 }
