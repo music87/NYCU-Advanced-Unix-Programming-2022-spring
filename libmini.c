@@ -5,6 +5,127 @@ long errno;
 #define	WRAPPER_RETval(type)	errno = 0; if(ret < 0) { errno = -ret; return -1; } return ((type) ret);
 #define	WRAPPER_RETptr(type)	errno = 0; if(ret < 0) { errno = -ret; return NULL; } return ((type) ret);
 
+/* (from glibc) Return a mask that includes the bit for SIG only.  */
+# define __sigmask(sig) \
+	   (((unsigned long int) 1) << (((sig) - 1) % (8 * sizeof (unsigned long int))))
+
+void *memset(void *s, int c, size_t n){
+	unsigned char *tar = s; // cast
+	for(size_t i; i<n; i++)
+		tar[i] = c;
+	return s;
+}
+
+// refer to signal.c: https://elixir.bootlin.com/linux/v4.16.8/source/kernel/signal.c#L3711
+// noteice that struct sigaction in kernel space is different from the struct sigaction is user space
+int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact){
+	struct sigaction kact, koldact;
+	if(act) {
+		kact.sa_handler = act->sa_handler;
+		kact.sa_flags = act->sa_flags | SA_RESTORER;
+		kact.sa_restorer = (sigrestore_t) sys_rt_sigreturn;
+		kact.sa_mask = act->sa_mask;
+	}
+
+	long ret = sys_rt_sigaction(signum, &kact, &koldact, sizeof(sigset_t));
+
+	if(!ret && oldact){
+		oldact->sa_handler = koldact.sa_handler;
+		oldact->sa_mask = koldact.sa_mask;
+		oldact->sa_flags = koldact.sa_flags;
+		oldact->sa_restorer = (sigrestore_t) koldact.sa_restorer;
+	}
+    WRAPPER_RETval(int);
+}
+
+// refer to glibc: https://code.woboq.org/userspace/glibc/signal/sigismem.c.html
+int sigismember(const sigset_t *set, int sig){
+	long ret = 0;
+	if (set == NULL || sig <= 0 || sig >= 32){
+		ret = -EINVAL;
+		WRAPPER_RETval(int);
+	}
+	return (*set & __sigmask(sig))? 1:0;
+}
+
+// refer to glibc: https://code.woboq.org/userspace/glibc/signal/sigaddset.c.html
+int sigaddset (sigset_t *set, int sig){
+	long ret = 0;
+	if (set == NULL || sig <= 0 || sig >= 32){
+		ret = -EINVAL;
+		WRAPPER_RETval(int);
+	}
+	*set |= __sigmask(sig);
+	WRAPPER_RETval(int);
+}
+
+// refer to glibc: https://code.woboq.org/userspace/glibc/signal/sigdelset.c.html#sigdelset
+int sigdelset (sigset_t *set, int sig){
+	long ret = 0;
+	if (set == NULL || sig <= 0 || sig >= 32){
+		ret = -EINVAL;
+		WRAPPER_RETval(int);
+	}
+	*set &= ~__sigmask(sig);
+	WRAPPER_RETval(int);
+}
+
+// refer to glibc: https://code.woboq.org/userspace/glibc/signal/sigempty.c.html#sigemptyset
+int sigemptyset(sigset_t *set){
+	long ret = 0;
+	if (set == NULL){
+		ret = -EINVAL;
+		WRAPPER_RETval(int);
+	}
+	memset(set, 0, sizeof (sigset_t));
+	WRAPPER_RETval(int);
+}
+
+// refer to glibc: https://code.woboq.org/userspace/glibc/signal/sigfillset.c.html#sigfillset
+int sigfillset(sigset_t *set){
+	long ret = 0;
+	if (set == NULL){
+		ret = -EINVAL;
+		WRAPPER_RETval(int);
+	}
+	memset(set, 0xff, sizeof (sigset_t));
+	WRAPPER_RETval(int);
+}
+
+// call system call: sys_rt_sigpending
+int sigpending(sigset_t *set){
+	long ret = sys_rt_sigpending(set, sizeof(sigset_t));
+	WRAPPER_RETval(int);
+}
+
+// call system call: sys_rt_sigprocmask
+int sigprocmask(int how, const sigset_t *set, sigset_t *oldset){
+	long ret = sys_rt_sigprocmask(how, set, oldset, sizeof(sigset_t));
+	WRAPPER_RETval(int);
+}
+
+// refer to glibc: signal: https://code.woboq.org/userspace/glibc/sysdeps/posix/signal.c.html#51
+sighandler_t signal(int signum, sighandler_t handler){
+	struct sigaction act, oact;
+	if (handler == SIG_ERR || signum < 1 || signum >= 32){
+		errno = EINVAL;
+		return SIG_ERR;
+	}
+	act.sa_handler = handler;
+	sigemptyset(&act.sa_mask);
+	sigaddset(&act.sa_mask, signum);
+	act.sa_flags = (signum == SIGINT)? 0 : SA_RESTART;
+	if (sigaction (signum, &act, &oact) < 0)
+		return SIG_ERR;
+	return oact.sa_handler;
+}
+// int setjmp(jmp_buf env); // implement by assembly
+// void longjmp(jmp_buf env, int val); // implement by assembly
+
+unsigned int alarm(unsigned int sec){
+	long ret = sys_alarm(sec);
+	WRAPPER_RETval(unsigned int);
+}
 ssize_t	read(int fd, char *buf, size_t count) {
 	long ret = sys_read(fd, buf, count);
 	WRAPPER_RETval(ssize_t);

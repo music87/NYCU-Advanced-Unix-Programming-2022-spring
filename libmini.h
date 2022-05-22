@@ -129,6 +129,8 @@ extern long errno;
 #define SIGWINCH	28
 #define SIGIO		29
 #define SIGPOLL		SIGIO
+#define SIGPWR      30
+#define SIGSYS      31
 
 /* from /usr/include/x86_64-linux-gnu/bits/sigaction.h */
 #define	SA_NOCLDSTOP  1		 /* Don't send SIGCHLD when children stop.  */
@@ -141,10 +143,15 @@ extern long errno;
 # define SA_NODEFER   0x40000000 /* Don't automatically block the signal when
 				    its handler is being executed.  */
 # define SA_RESETHAND 0x80000000 /* Reset to SIG_DFL on entry to handler.  */
+# define SA_RESTORER 0x04000000
 
 #define	SIG_BLOCK     0		 /* Block signals.  */
 #define	SIG_UNBLOCK   1		 /* Unblock signals.  */
 #define	SIG_SETMASK   2		 /* Set the set of blocked signals.  */
+
+#define SIG_DFL	((sighandler_t)0)	/* default signal handling */
+#define SIG_IGN	((sighandler_t)1)	/* ignore signal */
+#define SIG_ERR	((sighandler_t)-1)	/* error return from signal */
 
 struct timespec {
 	long	tv_sec;		/* seconds */
@@ -161,7 +168,25 @@ struct timezone {
 	int	tz_dsttime;	/* type of DST correction */
 };
 
+typedef unsigned long sigset_t;
+
+typedef struct jmp_buf_s {
+	long long reg[8];
+	sigset_t mask;
+} jmp_buf[1];
+
+typedef void (*sighandler_t) (int);
+typedef void (*sigrestore_t) (void);
+
+struct sigaction {
+	sighandler_t sa_handler;
+	unsigned long sa_flags;
+	sigrestore_t sa_restorer;
+	sigset_t sa_mask;		/* mask last for extensibility */
+};
+
 /* system calls */
+
 long sys_read(int fd, char *buf, size_t count);
 long sys_write(int fd, const void *buf, size_t count);
 long sys_open(const char *filename, int flags, ... /*mode*/);
@@ -195,6 +220,12 @@ long sys_setuid(uid_t uid);
 long sys_setgid(gid_t gid);
 long sys_geteuid();
 long sys_getegid();
+
+long sys_rt_sigaction(int signo, struct sigaction *act, struct sigaction *oldact, size_t sigsetsize); // rax = 13
+long sys_rt_sigprocmask(int how, const sigset_t *nset, sigset_t *oset, size_t sigsetsize); // rax = 14
+long sys_rt_sigreturn(unsigned long unused); // rax = 15
+long sys_alarm(unsigned int seconds); // rax = 37
+long sys_rt_sigpending(sigset_t *set, size_t sigsetsize); // rax = 127
 
 /* wrappers */
 ssize_t	read(int fd, char *buf, size_t count);
@@ -235,5 +266,18 @@ void bzero(void *s, size_t size);
 size_t strlen(const char *s);
 void perror(const char *prefix);
 unsigned int sleep(unsigned int s);
+
+int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
+int sigismember(const sigset_t *set, int sig);
+int sigaddset (sigset_t *set, int sig);
+int sigdelset (sigset_t *set, int sig);
+int sigemptyset(sigset_t *set);
+int sigfillset(sigset_t *set);
+int sigpending(sigset_t *set);
+int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+sighandler_t signal(int signum, sighandler_t handler);
+int setjmp(jmp_buf env);
+void longjmp(jmp_buf env, int val);
+unsigned int alarm(unsigned int sec);
 
 #endif	/* __LIBMINI_H__ */

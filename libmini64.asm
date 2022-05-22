@@ -25,11 +25,14 @@ extern	errno
 	gensys   9, mmap
 	gensys  10, mprotect
 	gensys  11, munmap
+	gensys  13, rt_sigaction
+	gensys  14, rt_sigprocmask
 	gensys  22, pipe
 	gensys  32, dup
 	gensys  33, dup2
 	gensys  34, pause
 	gensys  35, nanosleep
+	gensys  37, alarm
 	gensys  57, fork
 	gensys  60, exit
 	gensys  79, getcwd
@@ -51,6 +54,7 @@ extern	errno
 	gensys 106, setgid
 	gensys 107, geteuid
 	gensys 108, getegid
+	gensys 127, rt_sigpending
 
 	global open:function
 open:
@@ -101,3 +105,39 @@ sleep_quit:
 	add	rsp, 32
 	ret
 
+; sys_rt_sigreturn
+	global sys_rt_sigreturn:function
+sys_rt_sigreturn:
+	mov rax, 15
+	syscall
+	ret
+
+; refer to https://elixir.bootlin.com/linux/v4.16.8/source/arch/x86/um/setjmp_64.S#L3
+; setjmp
+	global setjmp:function
+setjmp:
+	pop rsi ; Return address, and adjust the stack
+	xor eax, eax ; Return value
+	mov [rdi   ], rbx
+	mov [rdi+8 ], rsp
+	push rsi ; Make the call/return stack happy
+	mov [rdi+16], rbp
+	mov [rdi+24], r12
+	mov [rdi+32], r13
+	mov [rdi+40], r14
+	mov [rdi+48], r15
+	mov [rdi+56], rsi ; Return address
+	ret
+
+; longjmp
+	global longjmp:function
+longjmp:
+	mov eax, esi ; Return value (int)
+	mov rbx, [rdi   ]
+	mov rsp, [rdi+8 ]
+	mov rbp, [rdi+16]
+	mov r12, [rdi+24]
+	mov r13, [rdi+32]
+	mov r14, [rdi+40]
+	mov r15, [rdi+48]
+	jmp [rdi+56]
