@@ -102,7 +102,7 @@ int elf64_parser(const string prog_path, unsigned long long &entry_point, unsign
 		if(strcmp(cur_name, ".text") == 0){
 			// if current section's name is ".text"
 			text_begin = cur_entry.sh_addr;
-			text_end = cur_entry.sh_addr + cur_entry.sh_size;
+			text_end = cur_entry.sh_addr + cur_entry.sh_size -1;
 			break;
 		}
 	}

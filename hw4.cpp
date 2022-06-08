@@ -34,11 +34,11 @@ int main(){
 			dbg.list();
 		} else if(cmds.at(0) == "si"){
 			dbg.step_in();
+		} else if(cmds.at(0) == "delete" || cmds.at(0) == "del"){
+			dbg.delete_break_point(cmds);
 		} else{
 			fprintf(stderr, "** nothing happened\n");
 		}
 	}
-
-
 	return 0;
 }
