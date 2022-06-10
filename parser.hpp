@@ -16,12 +16,12 @@ using namespace std;
 // dbgcmd_parser
 
 typedef struct range_s {
-	unsigned long begin, end;
+	unsigned long long begin, end;
 }	range_t;
 
 typedef struct map_entry_s {
 	range_t range;
-	int perm;
+	std::string perm;
 	long offset;
 	std::string name;
 }	map_entry_t;
@@ -51,13 +51,11 @@ int maps_parser(pid_t pid, map<range_t, map_entry_t>& loaded) {
 			m.range.begin = strtol(args[0], NULL, 16);
 			m.range.end = strtol(ptr+1, NULL, 16);
 		}
-		m.name = basename(args[5]);
-		m.perm = 0;
-		if(args[1][0] == 'r') m.perm |= 0x04;
-		if(args[1][1] == 'w') m.perm |= 0x02;
-		if(args[1][2] == 'x') m.perm |= 0x01;
+		m.name = args[5];
+		args[1][3] = '\0';
+		m.perm = string(args[1]);
 		m.offset = strtol(args[2], NULL, 16);
-		//printf("XXX: %lx-%lx %04o %s\n", m.range.begin, m.range.end, m.perm, m.name.c_str());
+		fprintf(stdout, " %016llx-%016llx\t%s\t%ld\t%s\n", m.range.begin, m.range.end, m.perm.c_str(), m.offset, m.name.c_str());
 		loaded[m.range] = m;
 	}
 	return (int) loaded.size();
