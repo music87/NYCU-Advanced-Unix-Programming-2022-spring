@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <iostream>
@@ -7,16 +8,32 @@
 
 using namespace std;
 
-int main(){
+int main(int argc, char* argv[]){
+	istream *in;
+	ifstream fin;
 	debugger dbg;
-	string line;
-	while(true){
-		cout << "sdb> ";
-		getline(cin, line, '\n');
-		vector<string> cmds = dbgcmd_parser(line, ' ');
+	string line, script="", program="";
+	setvbuf(stdout, NULL, _IONBF, 0);
+	arg_parser(argc, argv, script, program);
+	// handler script
+	if(script != ""){
+		fin.open(script.c_str());
+		in = &fin;
+	} else {
+		in = &cin;
+	}
+	// handle program path loading
+	if(program != ""){
+		vector<string> cmds = dbgcmd_parser(("load "+program).c_str(), ' ');
+		dbg.load(cmds);
+	}
 
-		if(cin.eof() || cmds.at(0) == "exit" || cmds.at(0) == "q"){
+	if(script == "") cout << "sdb> ";
+	while(getline(*in, line, '\n')){
+		vector<string> cmds = dbgcmd_parser(line, ' ');
+		if(cmds.at(0) == "exit" || cmds.at(0) == "q"){
 			dbg.release();
+			fin.close();
 			exit(0);
 		} else if(line.empty()){
 			continue;
@@ -48,9 +65,12 @@ int main(){
 			dbg.disasm(cmds);
 		} else if(cmds.at(0) == "dump" || cmds.at(0) == "x"){
 			dbg.dump(cmds);
+		} else if(cmds.at(0) == "run" || cmds.at(0) == "r"){
+			dbg.run();
 		} else{
 			fprintf(stderr, "** nothing happened\n");
 		}
+		if(script == "") cout << "sdb> ";
 	}
 	return 0;
 }

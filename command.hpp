@@ -42,11 +42,13 @@ public:
 	void list();
 
 private:
-	enum candbp_t{ FOR_CONT, FOR_SINGLESTEP, FOR_START};
 	enum state_t{ LOADED, NOLOAD, RUNNING };
+	enum candbp_t{ FOR_CONT, FOR_SINGLESTEP, FOR_START };
+	bool last_cmd_is_set_rip;
 	unsigned long long reg_handler(string, unsigned long long, struct user_regs_struct&);
 	void check_hit_break_point_or_not(candbp_t);
-	void check_to_restore_code();
+	void check_then_restore_si_reput(unsigned long long);
+	void wait_then_check_exit();
 	void reput_all_breakpoints_from(unsigned long long begin_addr);
 	breakpoint_table bptab;
 	disassembler disasm_handler;
@@ -59,6 +61,7 @@ private:
 
 debugger::debugger(){
 	state = NOLOAD;
+	last_cmd_is_set_rip = false;
 	pid = -1;
 	prog_path = "";
 	entry_point = -1;
@@ -68,6 +71,7 @@ debugger::debugger(){
 
 void debugger::release(){
 	pid = -1;
+	last_cmd_is_set_rip = false;
 	state = LOADED;
 	// we hope to maintain bptab in the future, hence we don't clear bptab here
 }
@@ -115,11 +119,11 @@ void debugger::get_all_regs(){
 		perror("** ptrace GETREGS");
 		return;
 	}
-	fprintf(stdout, "RAX\t%llx\t\tRBX\t%llx\t\tRCX\t%llx\t\t RDX\t%llx\t\n", regs.rax, regs.rbx, regs.rcx, regs.rdx);
-	fprintf(stdout, "R8\t%llx\t\tR9\t%llx\t\tR10\t%llx\t\tR11\t%llx\t\n", regs.r8, regs.r9, regs.r10, regs.r11);
-	fprintf(stdout, "R12\t%llx\t\tR13\t%llx\t\tR14\t%llx\t\tR15\t%llx\t\n", regs.r12, regs.r13, regs.r14, regs.r15);
-	fprintf(stdout, "RDI\t%llx\t\tRSI\t%llx\t\tRBP\t%llx\t\tRSP %llx\t\n", regs.rdi, regs.rsi, regs.rbp, regs.rsp);
-	fprintf(stdout, "RIP\t%llx\t\tFLAGS\t%llx\n", regs.rip, regs.eflags);
+	fprintf(stdout, "RAX\t%llx\tRBX\t%llx\tRCX\t%llx\tRDX\t%llx\t\n", regs.rax, regs.rbx, regs.rcx, regs.rdx);
+	fprintf(stdout, "R8\t%llx\tR9\t%llx\tR10\t%llx\tR11\t%llx\t\n", regs.r8, regs.r9, regs.r10, regs.r11);
+	fprintf(stdout, "R12\t%llx\tR13\t%llx\tR14\t%llx\tR15\t%llx\t\n", regs.r12, regs.r13, regs.r14, regs.r15);
+	fprintf(stdout, "RDI\t%llx\tRSI\t%llx\tRBP\t%llx\tRSP\t%llx\t\n", regs.rdi, regs.rsi, regs.rbp, regs.rsp);
+	fprintf(stdout, "RIP\t%llx\tFLAGS\t%016llx\n", regs.rip, regs.eflags);
 }
 
 unsigned long long debugger::reg_handler(string tar_reg_t, unsigned long long input_val, struct user_regs_struct& regs){
@@ -185,8 +189,6 @@ void debugger::set_reg(vector<string> cmds){
 	}
 	string tar_reg_t = cmds.at(1);
 	unsigned long long input_val = strtol(cmds.at(2).c_str(), NULL, 0);
-	if(tar_reg_t == "rip")
-		reput_all_breakpoints_from(input_val);
 	struct user_regs_struct regs;
 	if(ptrace(PTRACE_GETREGS, pid, 0, &regs) != 0){
 		perror("** ptrace GETREGS");
@@ -198,64 +200,68 @@ void debugger::set_reg(vector<string> cmds){
 		perror("** ptrace SETREGS");
 		return;
 	}
+	if(tar_reg_t == "rip") last_cmd_is_set_rip = true;
 }
-// TODO: restore_all_code_from()
-void debugger::check_to_restore_code(){
-	// check whether rip hit the breakpoint
-	struct user_regs_struct regs;
-	if(ptrace(PTRACE_GETREGS, pid, 0, &regs) != 0){
-		perror("** ptrace GETREGS");
+
+
+void debugger::check_then_restore_si_reput(unsigned long long addr){
+	if(!bptab.include(addr))
 		return;
-	}
-	if(!bptab.include(regs.rip))
-		return; // no breakpoint, don't need to restore the code
-	// child process hit a breakpoint. restore original code (one byte)
-	unsigned long long cur_code = ptrace(PTRACE_PEEKTEXT, pid, regs.rip, 0);
-	if(ptrace(PTRACE_POKETEXT, pid, regs.rip, (cur_code & 0xffffffffffffff00) | (bptab[regs.rip]->code & 0x00000000000000ff)) != 0){
+	// restore code (one byte)
+	unsigned long long cur_code = ptrace(PTRACE_PEEKTEXT, pid, addr, 0);
+	if(ptrace(PTRACE_POKETEXT, pid, addr, (cur_code & 0xffffffffffffff00) | (bptab[addr]->code & 0x00000000000000ff)) != 0){
 		perror("** ptrace POKETEXT");
 		return;
 	}
+	// single step
+	if(ptrace(PTRACE_SINGLESTEP, pid, 0, 0) != 0){
+		perror("** ptrace SINGLESTEP");
+		return;
+	}
+	wait_then_check_exit(); if(state != RUNNING) return;
+	// reput 0xcc (one byte)
+	if(ptrace(PTRACE_POKETEXT, pid, addr, cur_code) != 0){
+		perror("** ptrace POKETEXT");
+		return;
+	}
+}
+
+void debugger::wait_then_check_exit(){
+	int status;
+	if(waitpid(pid, &status, 0) < 0){
+		perror("** waitpid");
+		return;
+	}
+	// child process exit case
+	if (WIFEXITED(status)) {
+		fprintf(stderr, "** child process %d terminiated normally (code %d)\n", pid, status);
+		release();
+		return;
+	}
+	assert(WIFSTOPPED(status));
 }
 
 void debugger::check_hit_break_point_or_not(candbp_t cbpt){
 	// cont may 1) stop at the byte "after" 0xcc or 2) normaly exit
 	// step_in will 1) stop at the starting byte of next instruction which may also be the byte "on" 0xcc 2) normaly exit
 	// now lets determine whether the break points are hit
-
-	// wait until child process' status change
-	if(cbpt == FOR_CONT || cbpt == FOR_SINGLESTEP){
-		int status;
-		if(waitpid(pid, &status, 0) < 0){
-			perror("** waitpid");
-			return;
-		}
-		// child process exit case
-		if (WIFEXITED(status)) {
-			fprintf(stderr, "** child process %d terminiated normally (code %d)\n", pid, status);
-			release();
-			return;
-		}
-		assert(WIFSTOPPED(status));
-	}
 	// child process stopped case. check whether the child process hit the breakpoint
-	unsigned long long bp_candidate;
-	struct user_regs_struct regs;
-	if(ptrace(PTRACE_GETREGS, pid, 0, &regs) != 0){
-		perror("** ptrace GETREGS");
+	struct user_regs_struct regs; if(ptrace(PTRACE_GETREGS, pid, 0, &regs) != 0) {perror("** ptrace GETREGS"); return;}
+	unsigned long long addr = (cbpt == FOR_CONT)? regs.rip-1 : regs.rip;
+	if(!bptab.include(addr)){
+		fprintf(stdout, "** hit no breakpoint\n");
 		return;
 	}
-	bp_candidate = (cbpt == FOR_CONT)? regs.rip-1 : regs.rip;
-	if(!bptab.include(bp_candidate)){
-		fprintf(stdout, "** hit no breakpoint, before run rip is @ 0x%llx\n", regs.rip);
-		return;
+	if(cbpt == FOR_CONT) {
+		// set rip = rip - 1
+		regs.rip = regs.rip - 1;
+		if(ptrace(PTRACE_SETREGS, pid, 0, &regs) != 0){
+			perror("** ptrace SETREGS");
+			return;
+		}
 	}
 	fprintf(stdout, "** breakpoint @");
-	disasm_handler.translate(bp_candidate, (unsigned char*)&(bptab[bp_candidate]->code));
-	if(cbpt == FOR_CONT) regs.rip = regs.rip-1; // return rip to before exec 0xcc (now is restore to its original byte)
-	if(ptrace(PTRACE_SETREGS, pid, 0, &regs) != 0){
-		perror("** ptrace SETREGS");
-		return;
-	}
+	disasm_handler.translate(addr, (unsigned char*)&(bptab[addr]->code));
 }
 
 void debugger::help(){
@@ -333,6 +339,7 @@ void debugger::load(vector<string> cmds){
 		return;
 	fprintf(stdout, "** program '%s' loaded. entry point 0x%llx \n", prog_path.c_str(), entry_point);
 	state = LOADED;
+	last_cmd_is_set_rip = false;
 }
 
 void debugger::reput_all_breakpoints_from(unsigned long long begin_addr){
@@ -350,8 +357,19 @@ void debugger::reput_all_breakpoints_from(unsigned long long begin_addr){
 }
 
 void debugger::run(){
-
-
+	if(state != LOADED && state != RUNNING){
+		fprintf(stderr, "** state must be LOADED or RUNNING\n");
+		return;
+	}
+	if(state == LOADED){
+		start();
+		cont();
+	}
+	else if(state == RUNNING){
+		fprintf(stderr, "** program %s is already running\n", prog_path.c_str());
+		cont();
+	}
+	last_cmd_is_set_rip = false;
 }
 
 void debugger::start(){
@@ -385,8 +403,10 @@ void debugger::start(){
 		ptrace(PTRACE_SETOPTIONS, pid, 0, PTRACE_O_EXITKILL);
 		reput_all_breakpoints_from(text_begin);
 		check_hit_break_point_or_not(FOR_START);
+
 		fprintf(stdout, "** pid %d\n", pid);
 		state = RUNNING;
+		last_cmd_is_set_rip = false;
 	}
 }
 
@@ -395,12 +415,18 @@ void debugger::step_in(){
 		fprintf(stderr, "** state must be RUNNING\n");
 		return;
 	}
-	check_to_restore_code();
-	if(ptrace(PTRACE_SINGLESTEP, pid, 0, 0) != 0){
-		perror("** ptrace SINGLESTEP");
-		return;
+	// get rip
+	struct user_regs_struct regs; if(ptrace(PTRACE_GETREGS, pid, 0, &regs) != 0) {perror("** ptrace GETREGS"); return;}
+	if(bptab.include(regs.rip)){
+		// restore code, single step, reput 0xcc
+		check_then_restore_si_reput(regs.rip); if(state != RUNNING) return;
+	} else{
+		// single step
+		if(ptrace(PTRACE_SINGLESTEP, pid, 0, 0) != 0){ perror("** ptrace SINGLESTEP"); return; }
+		wait_then_check_exit(); if(state != RUNNING) return;
 	}
 	check_hit_break_point_or_not(FOR_SINGLESTEP);
+	last_cmd_is_set_rip = false;
 }
 
 void debugger::cont(){
@@ -408,14 +434,16 @@ void debugger::cont(){
 		fprintf(stderr, "** state must be RUNNING\n");
 		return;
 	}
-	check_to_restore_code();
-	if(ptrace(PTRACE_CONT, pid, 0, 0) != 0){
-		perror("** ptrace CONT");
-		return;
+	// get rip, check, set rip = rip - 1, restore code, singel step, reput 0xcc
+	struct user_regs_struct regs; if(ptrace(PTRACE_GETREGS, pid, 0, &regs) != 0) {perror("** ptrace GETREGS"); return;}
+	if(!last_cmd_is_set_rip && bptab.include(regs.rip)){
+		check_then_restore_si_reput(regs.rip); if(state != RUNNING) return;
 	}
-	// TODO: set rip cont BUGGGG; first step_in to reuse bp then cont
+	// cont
+	if(ptrace(PTRACE_CONT, pid, 0, 0) != 0){ perror("** ptrace CONT"); return; }
+	wait_then_check_exit(); if(state != RUNNING) return;
 	check_hit_break_point_or_not(FOR_CONT);
-
+	last_cmd_is_set_rip = false;
 }
 
 void debugger::delete_break_point(vector<string>cmds){
@@ -467,7 +495,7 @@ void debugger::set_break_point(vector<string>cmds){
 		return;
 	}
 	// record break point
-	// TODO: however, the code may fill with 0xcc ...
+	// though the code (8 byte) may fill with 0xcc, actually we only need that particular one byte where 0xcc is put on
 	bptab.add(tar_addr, code);
 	// comment out because of bptab's index may change when delete some breakpoints and hence will cause confuse //fprintf(stdout, "** breakpoint %d @ 0x%llx\n", bptab[tar_addr]->idx, tar_addr);
 }

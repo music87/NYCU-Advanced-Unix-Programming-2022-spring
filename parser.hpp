@@ -48,14 +48,14 @@ int maps_parser(pid_t pid, map<range_t, map_entry_t>& loaded) {
 		if(nargs < 6) continue;
 		if((ptr = strchr(args[0], '-')) != NULL) {
 			*ptr = '\0';
-			m.range.begin = strtol(args[0], NULL, 16);
-			m.range.end = strtol(ptr+1, NULL, 16);
+			m.range.begin = strtoul(args[0], NULL, 16);
+			m.range.end = strtoul(ptr+1, NULL, 16);
 		}
 		m.name = args[5];
 		args[1][3] = '\0';
 		m.perm = string(args[1]);
 		m.offset = strtol(args[2], NULL, 16);
-		fprintf(stdout, " %016llx-%016llx\t%s\t%ld\t%s\n", m.range.begin, m.range.end, m.perm.c_str(), m.offset, m.name.c_str());
+		fprintf(stdout, "%016llx-%016llx %s\t%ld\t%s\n", m.range.begin, m.range.end, m.perm.c_str(), m.offset, m.name.c_str());
 		loaded[m.range] = m;
 	}
 	return (int) loaded.size();
@@ -120,4 +120,24 @@ vector<string> dbgcmd_parser(string line, char delimiter){
 	}
 	result.push_back(line.substr(pos1));
 	return result;
+}
+
+void arg_parser(int argc, char* argv[], string &script, string &program){
+	int option;
+	while((option=getopt(argc, argv, "s:")) != -1){
+		switch(option){
+			case 's':
+				script = string(optarg);
+				break;
+			case '?':
+			case ':':
+			default:
+				break;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+	if(argc > 0)
+		program = string(argv[0]);
 }

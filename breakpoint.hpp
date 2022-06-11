@@ -35,7 +35,7 @@ size_t disassembler::translate(const unsigned long long addr, const unsigned cha
 	}
 
 	size_t j;
-	fprintf(stdout, "\t 0x%" PRIx64 ": ", insn[0].address);
+	fprintf(stdout, "\t %" PRIx64 ": ", insn[0].address);
 	for (j = 0; j <insn[0].size; j++)
 		fprintf(stdout, "%2.2x ", code[j]);
 	fprintf(stdout, "\t%s\t%s\n", insn[0].mnemonic ,insn[0].op_str);
@@ -104,7 +104,7 @@ void breakpoint_table::add(unsigned long long addr, unsigned long long code){
 void breakpoint_table::del(int tar_idx){
 	unsigned long long tar_addr = data[tar_idx].addr;
 	data.erase(data.begin()+tar_idx);
-	fprintf(stdout, "** delete breakpoint %d @ %llx\n", tar_idx, tar_addr);
+	fprintf(stdout, "** delete breakpoint %d @ 0x%llx\n", tar_idx, tar_addr);
 }
 
 bool breakpoint_table::include(int idx){
@@ -118,5 +118,5 @@ bool breakpoint_table::include(unsigned long long addr){
 
 void breakpoint_table::show(){
 	for(unsigned int i=0; i<data.size(); i++)
-		fprintf(stdout, "%d: 0x%llx\n", i, data[i].addr);
+		fprintf(stdout, "%d: %llx\n", i, data[i].addr);
 }
