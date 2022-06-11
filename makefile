@@ -10,4 +10,4 @@ $(TARGET): $(TARGET).cpp $(DEPENDENCIES)
 	$(CXX) $(TARGET).o $(CFLAGS) -o $(TARGET)
 
 clean:
-	rm -f hw4 *.o core
+	rm -rf hw4 *.o core .DS_Store
