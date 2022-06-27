@@ -37,11 +37,11 @@ file::file(string fd_field, string path, string inode_field, string type_field){
 file::file(string fd_field, string path, string file_name){
 	struct stat statbuf, lstatbuf;
 	if(stat(path.c_str(), &statbuf) == -1){
-		perror("stat");
+		//perror("stat");
 		throw runtime_error("race condition, file no longer exist");
 	}
 	if(lstat(path.c_str(), &lstatbuf) == -1){
-		perror("lstat");
+		//perror("lstat");
 		throw runtime_error("race condition, file no longer exist");
 	}
 

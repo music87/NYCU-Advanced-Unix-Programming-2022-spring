@@ -1,4 +1,5 @@
 #pragma once
+#include <regex>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -14,17 +15,17 @@
 using namespace std;
 class process{
 public:
-	process(string dir_name);
+	process(string, regex, regex, regex);
 	static unordered_map<uid_t, string> user_table;
 private:
 	void set_command();
-	void set_pid(string dir_name);
+	void set_pid(string);
 	void set_user_name();
 	void handle_special_files();
 	void handle_memory_maps();
 	void handle_file_descriptors();
 	bool alive = true;
-	void print_opening_files();
+	void print_opening_files(regex, regex, regex);
 	string path; // "/proc/[pid]"
 	string command;
 	string pid;
@@ -34,17 +35,16 @@ private:
 	vector<file> file_list;
 };
 
-process::process(string dir_name){
+process::process(string dir_name, regex filter_command, regex filter_type, regex filter_file_name){
 	path = "/proc/" + dir_name;
 	set_command();
 	set_pid(dir_name);
 	set_user_name();
-	//printf("cmd=%s, pid=%s, uid=%s, user_name=%s\n", command.c_str(), pid.c_str(), uid.c_str() ,user_name.c_str());
 
 	handle_special_files();
 	handle_memory_maps();
 	handle_file_descriptors();
-	print_opening_files();
+	print_opening_files(filter_command, filter_type, filter_file_name);
 }
 
 void process::set_command(){
@@ -54,12 +54,12 @@ void process::set_command(){
 	ssize_t len;
 	int fd;
 	if((fd=open((path + "/comm").c_str(), O_RDONLY)) == -1){
-		perror("fopen");
+		//perror("fopen");
 		alive = false;
 		return;
 	}
 	if((len=read(fd, buffer, sizeof(buffer))) == -1){
-		perror("read");
+		//perror("read");
 		alive = false;
 		return;
 	}
@@ -80,7 +80,7 @@ void process::set_user_name(){
 
 	struct stat statbuf;
 	if(stat(path.c_str(), &statbuf) == -1){
-		perror("stat");
+		//perror("stat");
 		alive = false;
 		return;
 	}
@@ -106,18 +106,20 @@ void process::handle_special_files(){
 				file_list.push_back(file(tar.first, tar.second + " (Permission denied)", "", "unknown"));
 				continue;
 			} else{
-				perror("readlink");
+				//perror("readlink");
 				alive = false;
 				return;
 			}
 		}
 		buffer[len] = '\0';
 		string file_name(buffer);
+		if(file_name.find(" (deleted)")!=string::npos)
+			file_name.erase(file_name.find(" (deleted)"), 10);
 		try{
 			file_list.push_back(file(tar.first, tar.second, file_name));
 			hash.insert(file_name);
 		} catch(runtime_error &e){
-			printf("%s\n", e.what());
+			//printf("%s\n", e.what());
 			alive = false;
 			return;
 		}
@@ -135,7 +137,7 @@ void process::handle_memory_maps(){
 		if(errsv == EACCES){
 			return;
 		} else{
-			perror("fopen");
+			//perror("fopen");
 			alive=false;
 			return;
 		}
@@ -144,7 +146,7 @@ void process::handle_memory_maps(){
 	char deli[] = " \t\n";
 	while((re=fgets(buffer, sizeof(buffer), fp))){
 		if(re == NULL){
-			perror("fgets");
+			//perror("fgets");
 			alive=false;
 			return;
 		}
@@ -181,7 +183,7 @@ void process::handle_file_descriptors(){
 			file_list.push_back(file("NOFD", path + "/fd" + " (Permission denied)", "", ""));
 			return;
 		} else{
-			perror("opendir");
+			//perror("opendir");
 			alive = false;
 			return;
 		}
@@ -193,7 +195,7 @@ void process::handle_file_descriptors(){
 		if(dp==NULL && errno==0)
 			break;
 		if(dp==NULL && errno!=0){
-			perror("readdir");
+			//perror("readdir");
 			errno=0;
 			continue;
 		}
@@ -201,29 +203,33 @@ void process::handle_file_descriptors(){
 		if(file_descriptor=="." || file_descriptor=="..")
 			continue;
 		if((len=readlink((path + "/fd/" + file_descriptor).c_str(), buffer, sizeof(buffer))) == -1){
-			perror("readlink");
+			//perror("readlink");
 			errno=0;
 			continue;
 		}
 		buffer[len]='\0';
 		string file_name(buffer);
+		if(file_name.find(" (deleted)")!=string::npos)
+			file_name.erase(file_name.find(" (deleted)"), 10);
 		try{
 			file_list.push_back(file(file_descriptor, path + "/fd/" + file_descriptor, file_name));
 			hash.insert(file_name);
 		} catch(runtime_error &e){
-			printf("%s\n", e.what());
+			//printf("%s\n", e.what());
 			continue;
 		}
 	}
 }
 
-void process::print_opening_files(){
+void process::print_opening_files(regex filter_command, regex filter_type, regex filter_file_name){
 	if(!alive)
 		return;
+	if(!regex_search(command, filter_command))
+		return;
 	for(auto it=file_list.begin(); it!= file_list.end(); it++){
+		if(!regex_search(it->type, filter_type) || !regex_search(it->name, filter_file_name))
+			continue;
 		printf("%s\t\t%s\t\t%s\t\t", command.c_str(), pid.c_str(), user_name.c_str());
 		printf("%s\t\t%s\t\t%s\t\t%s\n", it->fd.c_str(), it->type.c_str(), it->inode.c_str(), it->name.c_str());
 	}
-
-
 }

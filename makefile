@@ -9,4 +9,4 @@ $(TARGET): $(TARGET).cpp $(DEPENDENCIES)
 	$(CXX) -o $@ $(CFLAGS) $< 
 
 clean:
-	rm hw1
+	rm hw1 core
