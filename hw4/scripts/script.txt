@@ -1,0 +1,4 @@
+help
+load ./sample/hello_sys
+start
+disasm 0x401000
